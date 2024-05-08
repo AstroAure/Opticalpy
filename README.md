@@ -25,10 +25,30 @@ This package integrates the following optical elements. The elements in *italic*
     * *Doublet*
     * *Triplet*
 
+[^1]: The lenses don't take dispersion into account yet (the index of refraction is constant regardless of the wavelength).
+
 * **Dispersive**:
     * Reflection grating
     * Transmission grating
     * *Prism*
     * *Grism*
 
-[^1]: The lenses don't take dispersion into account yet (the index of refraction is constant regardless of the wavelength).
+* **Camera**
+
+## What's coming next ?
+
+* More elements:
+    * Spherical mirrors
+    * Dispersive lenses
+    * Lenses arrangment (doublet, triplet...)
+    * Prisms, grisms
+    * Modular telescopes (Newton, Cassegrain, Ritchey-Chrétien)
+    * Schmidt-Cassegrain telescope
+    * Maksutov-Cassegrain telescope
+
+* Making it easier to use:
+    * PyPi package
+    * Documentation
+
+* Future version:
+    * 3D
