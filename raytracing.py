@@ -76,7 +76,7 @@ class Ray():
                  group=None,
                  origin:np.ndarray|list[float]=[0,0],
                  rotation:float|u.Quantity=0*u.deg,
-                 label:str|None=None):
+                 label:str|None="Ray"):
         
         self.wavelength : u.Quantity = wavelength if type(wavelength)==u.Quantity else wavelength*u.nm
         self.origin : np.ndarray = origin if type(origin)==np.ndarray else np.array(origin)
@@ -109,7 +109,9 @@ class Ray():
                 # print(f"Hitbox collision between {self.label} and {optic.label}")
                 func = lambda s: (eq_ray_x(s[0])-optic.equation_x(s[1]),eq_ray_y(s[0])-optic.equation_y(s[1]))
                 st_collision = optimize.fsolve(func, [0,0])
-                if (st_collision[1]>optic.extent[0])&(st_collision[1]<optic.extent[1])&(st_collision[0]>self.step):
+                t_min = min(optic.extent[0], optic.extent[1])
+                t_max = max(optic.extent[0], optic.extent[1])
+                if (st_collision[1]>t_min)&(st_collision[1]<t_max)&(st_collision[0]>self.step):
                     # print(f"Collision between {self.label} and {optic.label} : {st_collision[0]}")
                     s_collisions.append(st_collision[0])
                     t_collisions.append(st_collision[1])
@@ -439,11 +441,49 @@ class CircularRefraction(Refraction):
                          extent=[-np.arcsin(0.5*self.aperture/self.radius), np.arcsin(0.5*self.aperture/self.radius)], 
                          n_in=n_in, n_out=n_out, 
                          scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+        
+def Lens(self,
+         radius1:float|u.Quantity,
+         radius2:float|u.Quantity,
+         full_width:float|u.Quantity,
+         aperture:float|u.Quantity,
+         n:float,
+         mid_width:float|u.Quantity=0,
+         scene:Scene|None=None,
+         group=None,
+         origin:np.ndarray|list[float]=[0,0], 
+         rotation:float|u.Quantity=0*u.deg,
+         label:str|None = "Lens"):
+    radius1 : float= radius1.to(u.mm).value if type(radius1)==u.Quantity else radius1
+    radius2 : float= radius2.to(u.mm).value if type(radius2)==u.Quantity else radius2
+    full_width : float= full_width.to(u.mm).value if type(full_width)==u.Quantity else full_width
+    aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
+    mid_width : float= mid_width.to(u.mm).value if type(mid_width)==u.Quantity else mid_width
+    lens = OpticalGroup(scene=scene, origin=origin, rotation=rotation, label=label)
+    front = CircularRefraction(radius=radius1, aperture=aperture, n_in=1.0, n_out=n, group=lens, origin=[-0.5*mid_width,0], rotation=180, label=f"{label} front")
+    back  = CircularRefraction(radius=radius2, aperture=aperture, n_in=n, n_out=1.0, group=lens, origin=[0.5*mid_width,0], rotation=0, label=f"{label} back")
+    # if mid_width!=0:
+    #     top = FlatRefraction(aperture=mid_width, n_in=)
+    return lens
 
-def SymmetricalLens(focal:float|u.Quantity,
+def ThinSymmetricalLens(focal:float|u.Quantity,
+                        aperture:float|u.Quantity,
+                        n:float,
+                        scene:Scene|None=None,
+                        group=None,
+                        origin:np.ndarray|list[float]=[0,0], 
+                        rotation:float|u.Quantity=0*u.deg,
+                        label:str = "Lens") -> list[CircularRefraction]:
+    focal : float= focal.to(u.mm).value if type(focal)==u.Quantity else focal
+    aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
+    radius = 2*focal*(n-1)
+    front = CircularRefraction(radius=radius, aperture=aperture, n_in=1.0, n_out=n, scene=scene, group=group, origin=origin, rotation=rotation+180, label=f"{label} front")
+    back  = CircularRefraction(radius=radius, aperture=aperture, n_in=1.0, n_out=n, scene=scene, group=group, origin=origin, rotation=rotation, label=f"{label} back")
+    return front, back
+
+def ThinBackFlatLens(focal:float|u.Quantity,
                     aperture:float|u.Quantity,
                     n:float,
-                    aspect:float=0.1,
                     scene:Scene|None=None,
                     group=None,
                     origin:np.ndarray|list[float]=[0,0], 
@@ -451,11 +491,24 @@ def SymmetricalLens(focal:float|u.Quantity,
                     label:str = "Lens") -> list[CircularRefraction]:
     focal : float= focal.to(u.mm).value if type(focal)==u.Quantity else focal
     aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
-    d = aspect*aperture
-    radius = (n-1)*np.sqrt(d*focal/n)
-    print(radius)
-    front = CircularRefraction(radius=radius, aperture=aperture, n_in=n, n_out=1.0, scene=scene, group=group, origin=origin, rotation=rotation, label=f"{label} front")
-    back  = CircularRefraction(radius=radius, aperture=aperture, n_in=n, n_out=1.0, scene=scene, group=group, origin=origin, rotation=rotation+180, label=f"{label} back")
+    radius = focal*(n-1)
+    front = CircularRefraction(radius=radius, aperture=aperture, n_in=1.0, n_out=n, scene=scene, group=group, origin=origin, rotation=rotation+180, label=f"{label} front")
+    back  = FlatRefraction(aperture=aperture, n_in=n, n_out=1.0, scene=scene, group=group, origin=origin, rotation=rotation, label=f"{label} back")
+    return front, back
+
+def ThinFrontFlatLens(focal:float|u.Quantity,
+                    aperture:float|u.Quantity,
+                    n:float,
+                    scene:Scene|None=None,
+                    group=None,
+                    origin:np.ndarray|list[float]=[0,0], 
+                    rotation:float|u.Quantity=0*u.deg,
+                    label:str = "Lens") -> list[CircularRefraction]:
+    focal : float= focal.to(u.mm).value if type(focal)==u.Quantity else focal
+    aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
+    radius = focal*(n-1)
+    front = FlatRefraction(aperture=aperture, n_in=1.0, n_out=n, scene=scene, group=group, origin=origin, rotation=rotation+180, label=f"{label} front")
+    back  = CircularRefraction(radius=radius, aperture=aperture, n_in=n, n_out=1.0, scene=scene, group=group, origin=origin, rotation=rotation, label=f"{label} back")
     return front, back
 
 class HyperbolicMirror(Mirror):
