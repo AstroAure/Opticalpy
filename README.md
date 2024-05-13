@@ -6,7 +6,7 @@ It originated as a way to better understand how instruments in astronomy worked,
 
 ## What makes this package special ?
 
-1. It allows for modeling setup that use **dispersive elements** (gratings, *prism*, *grism*), and soon will also take dispersion in lenses into account.
+1. It allows for modeling setup that use **dispersive elements** (gratings, prism, *grism*), and soon will also take dispersion in lenses into account.
 
 2. The optical elements geometry are **described by parameterized curves** allowing for exact interaction bewteen light rays and optical elements. This gives way better results than using discretized elements. To make this easy to use, each optical element is defined by one set of equations, that are automatically modified to place it where and in the orientation you want. The most common optical elements are already implemented, but you can add whatever you want with th method !
 
@@ -18,33 +18,35 @@ This package integrates the following optical elements. The elements in *italic*
     * Flat
     * Parabolic
     * Hyperbolic
-    * *Spherical*
+    * Spherical
 
-* **Lens**[^1]:
+* **Lens**:
     * Spherical
     * *Doublet*
     * *Triplet*
 
-[^1]: The lenses don't take dispersion into account yet (the index of refraction is constant regardless of the wavelength).
-
 * **Dispersive**:
     * Reflection grating
     * Transmission grating
-    * *Prism*
+    * Prism
     * *Grism*
 
 * **Camera**
 
+* **Telescopes**
+    * *Newtonian*
+    * Cassegrain
+    * Ritchey-Chrétien
+    * *Schmidt-Cassegrain*
+    * *Maksutov-Cassegrain*
+
 ## What's coming next ?
 
 * More elements:
-    * Spherical mirrors
-    * Dispersive lenses
+    * Materials for dispersive lenses
     * Lenses arrangment (doublet, triplet...)
-    * Prisms, grisms
-    * Modular telescopes (Newton, Cassegrain, Ritchey-Chrétien)
-    * Schmidt-Cassegrain telescope
-    * Maksutov-Cassegrain telescope
+    * Grisms
+    * More telescopes (Newtonian, Schmidt-Cassegrain, Maksutov-Cassegrain)
 
 * Making it easier to use:
     * PyPi package
@@ -52,3 +54,7 @@ This package integrates the following optical elements. The elements in *italic*
 
 * Future version:
     * 3D
+
+## References
+
+Mike Lockwood, Amateur Telescope Making, http://loptics.com/ATM/index.html

@@ -4,6 +4,8 @@ import astropy.units as u
 from scipy import optimize
 from autograd import grad
 
+### UTILS ###
+
 def wavelength2RGB(wavelength:u.Quantity) -> list[float]:
     # Human like RGB color filters
     w = (wavelength.to(u.nm)).value
@@ -29,6 +31,8 @@ def wavelength2RGB(wavelength:u.Quantity) -> list[float]:
 def dist_angle(ang1:u.Quantity, ang2:u.Quantity) -> u.Quantity:
     # Signed angle from ang1 to ang2, result in (-180deg,180deg]
     return np.arctan2(np.sin(ang2-ang1), np.cos(ang2-ang1))
+
+### SCENE ###
 
 class Scene():
     def __init__(self, xlim:list[float]=None, ylim:list[float]=None,
@@ -68,6 +72,7 @@ class Scene():
         if self.ylim is not None: ax.set_ylim(self.ylim[0],self.ylim[1])
         plt.show()
 
+### RAYS ###
 
 class Ray():
     def __init__(self,
@@ -79,6 +84,7 @@ class Ray():
                  label:str|None="Ray"):
         
         self.wavelength : u.Quantity = wavelength if type(wavelength)==u.Quantity else wavelength*u.nm
+        self.n_in : float = 1.0
         self.origin : np.ndarray = origin if type(origin)==np.ndarray else np.array(origin)
         self.rotation: u.Quantity = rotation if type(rotation)==u.Quantity else rotation*u.deg
         self.color : list[float] = wavelength2RGB(self.wavelength)
@@ -162,43 +168,6 @@ class Ray():
         self.origin = new_pos
         self.rotation = new_rot
 
-def CollimatedBeam(aperture:float,
-                   wavelength:float|u.Quantity=450*u.nm,
-                   scene:Scene|None=None,
-                   group=None,
-                   origin:list[float]|np.ndarray=[0,0], 
-                   rotation:float|u.Quantity=0.0*u.deg, 
-                   N_sources:int=20, 
-                   hole:float=0.0,
-                   label:str|None="Collimated") -> list[Ray]:
-    rotation = rotation.to(u.deg).value if type(rotation)==u.Quantity else rotation
-    rays = []
-    for i, ang in enumerate(np.linspace(-0.5*aperture,0.5*aperture,N_sources)):
-        if (hole==0) | (abs(ang)>0.5*hole):
-            pos = [origin[0]+ang*np.cos((rotation+90)*u.deg), origin[1]+ang*np.sin((rotation+90)*u.deg)]
-            ray = Ray(wavelength=wavelength, scene=scene, group=group, origin=pos, rotation=rotation, label=f"{label} {i}")
-            rays.append(ray)
-    return rays
-
-def DivergingBeam(angle:float|u.Quantity,
-                  wavelength:float|u.Quantity=450*u.nm, 
-                  scene:Scene|None=None,
-                  group=None,
-                  origin:list[float]|np.ndarray=[0,0], 
-                  rotation:float|u.Quantity=0.0*u.deg, 
-                  N_sources:int=20, 
-                  hole:float|u.Quantity=0.0*u.deg,
-                  label:str|None="Diverging") -> list[Ray]:
-    rotation = rotation.to(u.deg).value if type(rotation)==u.Quantity else rotation
-    angle = angle.to(u.deg).value if type(angle)==u.Quantity else angle
-    hole = hole.to(u.deg).value if type(hole)==u.Quantity else hole
-    rays = []
-    for i, ang in enumerate(np.linspace(-0.5*angle,0.5*angle,N_sources)):
-        if (hole==0) | (abs(ang)>0.5*hole):
-            ray = Ray(wavelength=wavelength, scene=scene, group=group, origin=origin, rotation=rotation+ang, label=f"{label} {i}")
-            rays.append(ray)
-    return rays
-
 def WhiteRay(wavelengths:list[u.Quantity|float]|np.ndarray,
              scene:Scene|None=None,
              group=None,
@@ -211,45 +180,70 @@ def WhiteRay(wavelengths:list[u.Quantity|float]|np.ndarray,
         rays.append(ray)
     return rays
 
-def CollimatedWhiteBeam(aperture:float,
-                        wavelengths:list[u.Quantity|float]|np.ndarray, 
-                        scene:Scene|None=None,
-                        group=None,
-                        origin:list[float]|np.ndarray=[0,0], 
-                        rotation:float|u.Quantity=0.0*u.deg, 
-                        N_sources:int=20, 
-                        hole:float=0.0,
-                        label:str|None="Collimated") -> list[Ray]:
+def CollimatedBeam(aperture:float,
+                   wavelength:float|u.Quantity|list[u.Quantity|float]|np.ndarray=450*u.nm,
+                   scene:Scene|None=None,
+                   group=None,
+                   origin:list[float]|np.ndarray=[0,0], 
+                   rotation:float|u.Quantity=0.0*u.deg, 
+                   N_sources:int=20, 
+                   hole:float=0.0,
+                   label:str|None="Collimated"):
     rotation = rotation.to(u.deg).value if type(rotation)==u.Quantity else rotation
-    rays = []
+    beam = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
     for i, ang in enumerate(np.linspace(-0.5*aperture,0.5*aperture,N_sources)):
         if (hole==0) | (abs(ang)>0.5*hole):
-            pos = [origin[0]+ang*np.cos((rotation+90)*u.deg), origin[1]+ang*np.sin((rotation+90)*u.deg)]
-            ray = WhiteRay(wavelengths=wavelengths, scene=scene, group=group, origin=pos, rotation=rotation, label=f"{label} {i}")
-            rays.append(ray)
-    return rays
+            if (type(wavelength)==int) or (type(wavelength)==float) or (type(wavelength)==u.Quantity):
+                ray = Ray(wavelength=wavelength, group=beam, origin=[0,ang], rotation=0, label=i)
+            else:
+                ray = WhiteRay(wavelengths=wavelength, group=beam, origin=[0,ang], rotation=0, label=i)
+    return beam
 
-def DivergingWhiteBeam(angle:float|u.Quantity,
-                       wavelengths:list[u.Quantity|float]|np.ndarray, 
-                       scene:Scene|None=None,
-                       group=None,
-                       origin:list[float]|np.ndarray=[0,0], 
-                       rotation:float|u.Quantity=0.0*u.deg, 
-                       N_sources:int=20, 
-                       hole:float|u.Quantity=0.0*u.deg,
-                       label:str|None="Diverging") -> list[Ray]:
+def DivergingBeam(angle:float|u.Quantity,
+                  wavelength:float|u.Quantity|list[u.Quantity|float]|np.ndarray=450*u.nm, 
+                  scene:Scene|None=None,
+                  group=None,
+                  origin:list[float]|np.ndarray=[0,0], 
+                  rotation:float|u.Quantity=0.0*u.deg, 
+                  N_sources:int=20, 
+                  hole:float|u.Quantity=0.0*u.deg,
+                  label:str|None="Diverging") -> list[Ray]:
     rotation = rotation.to(u.deg).value if type(rotation)==u.Quantity else rotation
     angle = angle.to(u.deg).value if type(angle)==u.Quantity else angle
     hole = hole.to(u.deg).value if type(hole)==u.Quantity else hole
-    rays = []
+    beam = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
     for i, ang in enumerate(np.linspace(-0.5*angle,0.5*angle,N_sources)):
         if (hole==0) | (abs(ang)>0.5*hole):
-            ray = WhiteRay(wavelengths=wavelengths, scene=scene, group=group, origin=origin, rotation=rotation+ang, label=f"{label} {i}")
-            for r in ray:
-                rays.append(r)
-    return rays
+            if (type(wavelength)==int) or (type(wavelength)==float) or (type(wavelength)==u.Quantity):
+                ray = Ray(wavelength=wavelength, group=beam, origin=[0,0], rotation=ang, label=i)
+            else:
+                ray = WhiteRay(wavelengths=wavelength, group=beam, origin=[0,0], rotation=ang, label=i)
+    return beam
 
+def ConvergingBeam(focal:float|u.Quantity,
+                   F:float,
+                   wavelength:float|u.Quantity|list[u.Quantity|float]|np.ndarray=450*u.nm,
+                   scene:Scene|None=None,
+                   group=None,
+                   origin:list[float]|np.ndarray=[0,0], 
+                   rotation:float|u.Quantity=0.0*u.deg, 
+                   N_sources:int=20, 
+                   hole:float|u.Quantity=0.0*u.deg,
+                   label:str|None="Converging") -> list[Ray]:
+    rotation = rotation.to(u.deg).value if type(rotation)==u.Quantity else rotation
+    hole = hole.to(u.deg).value if type(hole)==u.Quantity else hole
+    angle = 2*np.rad2deg(np.arctan(0.5/F))
+    beam = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+    for i, ang in enumerate(np.linspace(-0.5*angle,0.5*angle,N_sources)):
+        if (hole==0) | (abs(ang)>0.5*hole):
+            offset = focal*np.array([1-np.cos(np.deg2rad(ang)),np.sin(np.deg2rad(ang))])
+            if (type(wavelength)==int) or (type(wavelength)==float) or (type(wavelength)==u.Quantity):
+                ray = Ray(wavelength=wavelength, group=beam, origin=offset, rotation=-ang, label=i)
+            else:
+                ray = WhiteRay(wavelengths=wavelength, group=beam, origin=offset, rotation=-ang, label=i)
+    return beam
 
+### OPTIC ###
 
 class Optic():
     def __init__(self, 
@@ -317,6 +311,7 @@ class Optic():
         self.equation_x, self.equation_y = self.calc_equation()
         if self.scene is not None: self.hitbox = self.calc_hitbox(self.scene.step)
 
+### OPTIC.MIRROR ##
 
 class Mirror(Optic):
     def __init__(self,
@@ -352,30 +347,41 @@ def Slit(full_size:float|u.Quantity,
          group=None,
          origin:np.ndarray|list[float]=[0,0], 
          rotation:float|u.Quantity=0*u.deg,
-         label:str = "Slit") -> list[FlatMirror]:
+         label:str = "Slit"):
     full_size = full_size.to(u.mm).value if type(full_size)==u.Quantity else full_size
     slit_width = slit_width.to(u.mm).value if type(slit_width)==u.Quantity else slit_width
-    topMirror = FlatMirror(full_size, scene, group, origin, rotation, label=f"{label} 1")
-    botMirror = FlatMirror(full_size, scene, group, origin, rotation, label=f"{label} 2")
+    slit = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+    topMirror = FlatMirror(aperture=full_size, group=slit, origin=[0,0], rotation=0, label=1)
+    botMirror = FlatMirror(aperture=full_size, group=slit, origin=[0,0], rotation=0, label=2)
     topMirror.extent = [0.5*slit_width, 0.5*full_size]
     botMirror.extent = [-0.5*full_size, -0.5*slit_width]
-    return topMirror, botMirror
+    return slit
 
 
-class ParabolicMirror(Mirror):
+class GeneralMirror(Mirror):
     def __init__(self,
-                 focal:float|u.Quantity,
+                 R:float|u.Quantity,
+                 b:float,
                  aperture:float|u.Quantity,
                  scene:Scene|None=None,
                  group=None,
                  origin:np.ndarray|list[float]=[0,0], 
                  rotation:float|u.Quantity=0*u.deg,
-                 label:str = "Parabolic mirror"):
-        self.focal : float= focal.to(u.mm).value if type(focal)==u.Quantity else focal
+                 label:str = "General mirror"):
+        self.R : float= R.to(u.mm).value if type(R)==u.Quantity else R
         self.aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
-        super().__init__(equations=(lambda t: t, lambda t: (0.25/self.focal)*t**2), 
+        super().__init__(equations=(lambda t: t, lambda t: (t**2/R)/(1+np.sqrt(1-(1+b)*(t/R)**2))), 
                          extent=[-0.5*self.aperture,0.5*self.aperture], 
                          scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+
+def ParabolicMirror(focal:float|u.Quantity,
+                    aperture:float|u.Quantity,
+                    scene:Scene|None=None,
+                    group=None,
+                    origin:np.ndarray|list[float]=[0,0], 
+                    rotation:float|u.Quantity=0*u.deg,
+                    label:str = "Parabolic mirror"):
+        return GeneralMirror(R=2*focal, b=-1, aperture=aperture, scene=scene, group=group, origin=origin, rotation=rotation, label=label)
 
 def ParabolicMirrorHole(focal:float|u.Quantity,
                         aperture:float|u.Quantity,
@@ -384,36 +390,114 @@ def ParabolicMirrorHole(focal:float|u.Quantity,
                         group=None,
                         origin:np.ndarray|list[float]=[0,0], 
                         rotation:float|u.Quantity=0*u.deg,
-                        label:str = "Parabolic mirror") -> list[ParabolicMirror]:
+                        label:str = "Parabolic mirror"):
     hole = hole.to(u.mm).value if type(hole)==u.Quantity else hole
-    topMirror = ParabolicMirror(focal, aperture, scene, group, origin, rotation, label=f"{label} 1")
-    botMirror = ParabolicMirror(focal, aperture, scene, group, origin, rotation, label=f"{label} 2")
+    mirror = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+    topMirror = ParabolicMirror(focal=focal, aperture=aperture, group=mirror, origin=[0,0], rotation=0, label=1)
+    botMirror = ParabolicMirror(focal=focal, aperture=aperture, group=mirror, origin=[0,0], rotation=0, label=2)
     topMirror.extent = [0.5*hole, 0.5*aperture]
     botMirror.extent = [-0.5*aperture, -0.5*hole]
-    return topMirror, botMirror
+    return mirror
 
+def HyperbolicMirror(radius:float|u.Quantity,
+                     aperture:float|u.Quantity,
+                     b:float=-2,
+                     scene:Scene|None=None,
+                     group=None,
+                     origin:np.ndarray|list[float]=[0,0], 
+                     rotation:float|u.Quantity=0*u.deg,
+                     label:str = "Hyperbolic mirror"):
+        return GeneralMirror(R=radius, b=b, aperture=aperture, scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+
+def HyperbolicMirrorHole(radius:float|u.Quantity,
+                         aperture:float|u.Quantity,
+                         hole:float|u.Quantity,
+                         b:float=-2, 
+                         scene:Scene|None=None,
+                         group=None,
+                         origin:np.ndarray|list[float]=[0,0], 
+                         rotation:float|u.Quantity=0*u.deg,
+                         label:str = "Hyperbolic mirror"):
+    hole = hole.to(u.mm).value if type(hole)==u.Quantity else hole
+    mirror = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+    topMirror = HyperbolicMirror(radius=radius, aperture=aperture, b=b, group=mirror, origin=[0,0], rotation=0, label=1)
+    botMirror = HyperbolicMirror(radius=radius, aperture=aperture, b=b, group=mirror, origin=[0,0], rotation=0, label=2)
+    topMirror.extent = [0.5*hole, 0.5*aperture]
+    botMirror.extent = [-0.5*aperture, -0.5*hole]
+    return mirror
+
+def SphericalMirror(radius:float|u.Quantity,
+                    aperture:float|u.Quantity,
+                    scene:Scene|None=None,
+                    group=None,
+                    origin:np.ndarray|list[float]=[0,0], 
+                    rotation:float|u.Quantity=0*u.deg,
+                    label:str = "Spherical mirror"):
+        return GeneralMirror(R=radius, b=0, aperture=aperture, scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+        
+def SphericalMirrorHole(radius:float|u.Quantity,
+                        aperture:float|u.Quantity,
+                        hole:float|u.Quantity, 
+                        scene:Scene|None=None,
+                        group=None,
+                        origin:np.ndarray|list[float]=[0,0], 
+                        rotation:float|u.Quantity=0*u.deg,
+                        label:str = "Hyperbolic mirror"):
+    hole = hole.to(u.mm).value if type(hole)==u.Quantity else hole
+    mirror = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+    topMirror = SphericalMirror(radius=radius, aperture=aperture, group=mirror, origin=[0,0], rotation=0, label=1)
+    botMirror = SphericalMirror(radius=radius, aperture=aperture, group=mirror, origin=[0,0], rotation=0, label=2)
+    topMirror.extent = [0.5*hole, 0.5*aperture]
+    botMirror.extent = [-0.5*aperture, -0.5*hole]
+    return mirror
+
+### OPTIC.LENS ###
 
 class Refraction(Optic):
     def __init__(self,
                  equations:list, 
                  extent:list[float],
-                 n_in:float=1.0, n_out:float=1.0,
+                 n_in=1.0, n_out=1.0,
                  scene:Scene|None=None,
                  group=None,
                  origin:np.ndarray|list[float]=[0,0], 
                  rotation:float|u.Quantity=0*u.deg,
                  label:str|None = "Refraction"):
-        self.n_in : float = n_in
-        self.n_out : float = n_out
+        self.n_in = n_in
+        self.n_out = n_out
         super().__init__(equations, extent, scene, group, origin, rotation, label)
 
     def interaction(self, angle:u.Quantity, ray:Ray, t_opt:float) -> u.Quantity:
-        return (np.pi+np.arcsin((self.n_in/self.n_out)*np.sin(angle).value))*u.rad
+        # Dispersive lens
+        if type(self.n_in)==float:
+            opt_n_in = self.n_in
+        else:
+            opt_n_in = self.n_in(ray.wavelength)
+        if type(self.n_out)==float:
+            opt_n_out = self.n_out
+        else:
+            opt_n_out = self.n_out(ray.wavelength)
+        # Entry or exit
+        if ray.n_in==opt_n_in:
+            n1, n2 = opt_n_in, opt_n_out
+            ray.n_in = opt_n_out
+        elif ray.n_in==opt_n_out:
+            n1, n2 = opt_n_out, opt_n_in
+            ray.n_in = opt_n_in
+        else:
+            print(f"WARNING : Ray ({ray.label}) entering a non-planned refraction interface ({self.label}) !")
+            n1, n2 = opt_n_in, opt_n_out
+        # Total internal reflection
+        if abs((n1/n2)*np.sin(angle).value) > 1:
+            ray.n_in = n1
+            return -angle
+        # Snell's law
+        return (np.pi+np.arcsin((n1/n2)*np.sin(angle).value))*u.rad
 
 class FlatRefraction(Refraction):
     def __init__(self,
                  aperture:float|u.Quantity,
-                 n_in:float=1.0, n_out:float=1.0,
+                 n_in=1.0, n_out=1.0,
                  scene:Scene|None=None,
                  group=None,
                  origin:np.ndarray|list[float]=[0,0], 
@@ -429,7 +513,7 @@ class CircularRefraction(Refraction):
     def __init__(self,
                  radius:float|u.Quantity,
                  aperture:float|u.Quantity,
-                 n_in:float=1.0, n_out:float=1.0,
+                 n_in=1.0, n_out=1.0,
                  scene:Scene|None=None,
                  group=None,
                  origin:np.ndarray|list[float]=[0,0], 
@@ -437,17 +521,15 @@ class CircularRefraction(Refraction):
                  label:str|None = "Circular refraction"):
         self.radius : float= radius.to(u.mm).value if type(radius)==u.Quantity else radius
         self.aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
-        super().__init__(equations=(lambda t: self.radius*np.sin(t), lambda t: self.radius*(np.cos(np.arcsin(0.5*self.aperture/self.radius))-np.cos(t))), 
+        super().__init__(equations=(lambda t: self.radius*np.sin(t), lambda t: -self.radius*(np.cos(np.arcsin(0.5*self.aperture/self.radius))-np.cos(t))), 
                          extent=[-np.arcsin(0.5*self.aperture/self.radius), np.arcsin(0.5*self.aperture/self.radius)], 
                          n_in=n_in, n_out=n_out, 
                          scene=scene, group=group, origin=origin, rotation=rotation, label=label)
         
-def Lens(self,
-         radius1:float|u.Quantity,
+def Lens(radius1:float|u.Quantity,
          radius2:float|u.Quantity,
-         full_width:float|u.Quantity,
          aperture:float|u.Quantity,
-         n:float,
+         n,
          mid_width:float|u.Quantity=0,
          scene:Scene|None=None,
          group=None,
@@ -456,91 +538,150 @@ def Lens(self,
          label:str|None = "Lens"):
     radius1 : float= radius1.to(u.mm).value if type(radius1)==u.Quantity else radius1
     radius2 : float= radius2.to(u.mm).value if type(radius2)==u.Quantity else radius2
-    full_width : float= full_width.to(u.mm).value if type(full_width)==u.Quantity else full_width
     aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
     mid_width : float= mid_width.to(u.mm).value if type(mid_width)==u.Quantity else mid_width
-    lens = OpticalGroup(scene=scene, origin=origin, rotation=rotation, label=label)
-    front = CircularRefraction(radius=radius1, aperture=aperture, n_in=1.0, n_out=n, group=lens, origin=[-0.5*mid_width,0], rotation=180, label=f"{label} front")
-    back  = CircularRefraction(radius=radius2, aperture=aperture, n_in=n, n_out=1.0, group=lens, origin=[0.5*mid_width,0], rotation=0, label=f"{label} back")
-    # if mid_width!=0:
-    #     top = FlatRefraction(aperture=mid_width, n_in=)
+    lens = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+    if radius1==np.inf:
+        front = FlatRefraction(aperture=aperture, n_in=1.0, n_out=n, group=lens, origin=[0,0.5*mid_width], rotation=0, label=f"{label} front")
+    else:
+        front = CircularRefraction(radius=radius1, aperture=aperture, n_in=1.0, n_out=n, group=lens, origin=[0,0.5*mid_width], rotation=0, label=f"{label} front")
+    if radius2==np.inf:
+        back = FlatRefraction(aperture=aperture, n_in=1.0, n_out=n, group=lens, origin=[0,-0.5*mid_width], rotation=180, label=f"{label} back")
+    else:
+        back = CircularRefraction(radius=radius2, aperture=aperture, n_in=1.0, n_out=n, group=lens, origin=[0,-0.5*mid_width], rotation=180, label=f"{label} back")
+    if mid_width!=0:
+        top    = FlatRefraction(aperture=mid_width, n_in=1.0, n_out=n, group=lens, origin=[0.5*aperture,0], rotation=90, label=f"{label} top")
+        bottom = FlatRefraction(aperture=mid_width, n_in=1.0, n_out=n, group=lens, origin=[-0.5*aperture,0], rotation=90, label=f"{label} bottom")
     return lens
 
 def ThinSymmetricalLens(focal:float|u.Quantity,
                         aperture:float|u.Quantity,
-                        n:float,
+                        n,
+                        width:float=0,
+                        f_wavelength:float|u.Quantity=520,
                         scene:Scene|None=None,
                         group=None,
                         origin:np.ndarray|list[float]=[0,0], 
                         rotation:float|u.Quantity=0*u.deg,
-                        label:str = "Lens") -> list[CircularRefraction]:
+                        label:str = "Lens"):
     focal : float= focal.to(u.mm).value if type(focal)==u.Quantity else focal
     aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
-    radius = 2*focal*(n-1)
-    front = CircularRefraction(radius=radius, aperture=aperture, n_in=1.0, n_out=n, scene=scene, group=group, origin=origin, rotation=rotation+180, label=f"{label} front")
-    back  = CircularRefraction(radius=radius, aperture=aperture, n_in=1.0, n_out=n, scene=scene, group=group, origin=origin, rotation=rotation, label=f"{label} back")
-    return front, back
+    f_wavelength : u.Quantity = f_wavelength if type(f_wavelength)==u.Quantity else f_wavelength*u.nm
+    n_f : float = n if type(n)==float else n(f_wavelength)
+    radius = 2*focal*(n_f-1)
+    d = abs(radius*(1-np.cos(np.arcsin(0.5*aperture/radius))))
+    mid_width = max(0,width-2*d)
+    if radius<0:
+        mid_width = max(2*d+width,2*1.5*d)
+    return Lens(radius1=radius, radius2=radius, aperture=aperture, n=n, mid_width=mid_width, scene=scene, group=group, origin=origin, rotation=rotation, label=label)
 
 def ThinBackFlatLens(focal:float|u.Quantity,
                     aperture:float|u.Quantity,
-                    n:float,
+                    n,
+                    f_wavelength:float|u.Quantity=520,
                     scene:Scene|None=None,
                     group=None,
                     origin:np.ndarray|list[float]=[0,0], 
                     rotation:float|u.Quantity=0*u.deg,
-                    label:str = "Lens") -> list[CircularRefraction]:
+                    label:str = "Lens"):
     focal : float= focal.to(u.mm).value if type(focal)==u.Quantity else focal
     aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
-    radius = focal*(n-1)
-    front = CircularRefraction(radius=radius, aperture=aperture, n_in=1.0, n_out=n, scene=scene, group=group, origin=origin, rotation=rotation+180, label=f"{label} front")
-    back  = FlatRefraction(aperture=aperture, n_in=n, n_out=1.0, scene=scene, group=group, origin=origin, rotation=rotation, label=f"{label} back")
-    return front, back
+    f_wavelength : u.Quantity = f_wavelength if type(f_wavelength)==u.Quantity else f_wavelength*u.nm
+    n_f : float = n if type(n)==float else n(f_wavelength)
+    radius = focal*(n_f-1)
+    return Lens(radius1=radius, radius2=np.inf, aperture=aperture, n=n, mid_width=0, scene=scene, group=group, origin=origin, rotation=rotation, label=label)
 
 def ThinFrontFlatLens(focal:float|u.Quantity,
-                    aperture:float|u.Quantity,
-                    n:float,
-                    scene:Scene|None=None,
-                    group=None,
-                    origin:np.ndarray|list[float]=[0,0], 
-                    rotation:float|u.Quantity=0*u.deg,
-                    label:str = "Lens") -> list[CircularRefraction]:
+                      aperture:float|u.Quantity,
+                      n,
+                      f_wavelength:float|u.Quantity=520,
+                      scene:Scene|None=None,
+                      group=None,
+                      origin:np.ndarray|list[float]=[0,0], 
+                      rotation:float|u.Quantity=0*u.deg,
+                      label:str = "Lens"):
     focal : float= focal.to(u.mm).value if type(focal)==u.Quantity else focal
     aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
-    radius = focal*(n-1)
-    front = FlatRefraction(aperture=aperture, n_in=1.0, n_out=n, scene=scene, group=group, origin=origin, rotation=rotation+180, label=f"{label} front")
-    back  = CircularRefraction(radius=radius, aperture=aperture, n_in=n, n_out=1.0, scene=scene, group=group, origin=origin, rotation=rotation, label=f"{label} back")
-    return front, back
+    f_wavelength : u.Quantity = f_wavelength if type(f_wavelength)==u.Quantity else f_wavelength*u.nm
+    n_f : float = n if type(n)==float else n(f_wavelength)
+    radius = focal*(n_f-1)
+    return Lens(radius1=np.inf, radius2=radius, aperture=aperture, n=n, mid_width=0, scene=scene, group=group, origin=origin, rotation=rotation, label=label)
 
-class HyperbolicMirror(Mirror):
+def Prism(size:float|u.Quantity,
+          n,
+          angles:list[float|u.Quantity]=[60*u.deg,60*u.deg],
+          scene:Scene|None=None,
+          group=None,
+          origin:np.ndarray|list[float]=[0,0], 
+          rotation:float|u.Quantity=0*u.deg,
+          label:str = "Prism"):
+    size : float = size.to(u.mm).value if type(size)==u.Quantity else size
+    for i,angle in enumerate(angles):
+        angles[i] = angle if type(angle)==u.Quantity else angle*u.deg
+    prism = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+    sin_ratio = size/np.sin(180*u.deg-angles[0]-angles[1]).value
+    size_l = sin_ratio*np.sin(angles[1]).value
+    size_r = sin_ratio*np.sin(angles[0]).value
+    A = np.array([0,0])
+    B = np.array([size,0])
+    C = A + np.array([size_l*np.cos(angles[0]), size_l*np.sin(angles[0])])
+    center = (A+B+C)/3
+    center_b = (A+B)/2
+    center_l = (A+C)/2
+    center_r = (B+C)/2
+    base  = FlatRefraction(aperture=size,   n_in=1.0, n_out=n, group=prism, origin=center_b-center, rotation=0, label=f"Base")
+    left  = FlatRefraction(aperture=size_l, n_in=1.0, n_out=n, group=prism, origin=center_l-center, rotation=angles[0], label=f"Left")
+    right = FlatRefraction(aperture=size_r, n_in=1.0, n_out=n, group=prism, origin=center_r-center,  rotation=180*u.deg-angles[1], label=f"Right")
+    return prism
+
+class SchmidtRefraction(Refraction):
     def __init__(self,
-                 focal:float|u.Quantity,
                  aperture:float|u.Quantity,
+                 radius:float|u.Quantity,
+                 n,
+                 k:float=1.5,
+                 opt_wavelength:float|u.Quantity=520*u.nm,
                  scene:Scene|None=None,
                  group=None,
                  origin:np.ndarray|list[float]=[0,0], 
                  rotation:float|u.Quantity=0*u.deg,
-                 label:str = "Hyperbolic mirror"):
-        self.focal : float= focal.to(u.mm).value if type(focal)==u.Quantity else focal
+                 label:str|None = "Schmidt refraction"):
         self.aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
-        super().__init__(equations=(lambda t: t, lambda t: self.focal*(np.sqrt(1+((t/self.focal)**2)/3)-1)), 
+        self.radius : float = radius.to(u.mm).value if type(radius)==u.Quantity else radius
+        self.n = n
+        self.k = k
+        if type(self.n)==float:
+            opt_n = self.n
+        else:
+            opt_n = self.n(opt_wavelength)
+        super().__init__(equations=(lambda t: t, lambda t: (0.25*k*(self.aperture*t)**2 - t**4)/(4*(opt_n-1)*self.radius**3)), 
                          extent=[-0.5*self.aperture,0.5*self.aperture], 
+                         n_in=1.0, n_out=self.n, 
                          scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+        
+def SchmidtCorrector(aperture:float|u.Quantity,
+                     radius:float|u.Quantity,
+                     n:float,
+                     k:float=1.5,
+                     width:float|u.Quantity=1,
+                     opt_wavelength:float|u.Quantity=520*u.nm,
+                     scene:Scene|None=None,
+                     group=None,
+                     origin:np.ndarray|list[float]=[0,0], 
+                     rotation:float|u.Quantity=0*u.deg,
+                     label:str|None = "Schmidt corrector"):
+    aperture : float = aperture.to(u.mm).value if type(aperture)==u.Quantity else aperture
+    radius : float = radius.to(u.mm).value if type(radius)==u.Quantity else radius
+    width : float = width.to(u.mm).value if type(width)==u.Quantity else width
+    corrector = OpticalGroup(scene=scene, group=group, origin=origin, rotation=rotation, label=label)
+    schmidt = SchmidtRefraction(aperture=aperture, radius=radius, n=n, k=k, opt_wavelength=opt_wavelength, group=corrector, origin=[0,-width], rotation=0, label="Schmidt")
+    flat = FlatRefraction(aperture=aperture, n_in=1.0, n_out=n, group=corrector, origin=[0,0], rotation=0, label="Flat")
+    real_width = width-schmidt.raw_equation_y(0.5*aperture)
+    left = FlatRefraction(aperture=real_width, n_in=1.0, n_out=n, group=corrector, origin=[-0.5*aperture, -0.5*real_width], rotation=90, label="Left")
+    right = FlatRefraction(aperture=real_width, n_in=1.0, n_out=n, group=corrector, origin=[0.5*aperture, -0.5*real_width], rotation=90, label="Right")
+    return corrector
 
-def HyperbolicMirrorHole(focal:float|u.Quantity,
-                         aperture:float|u.Quantity,
-                         hole:float|u.Quantity, 
-                         scene:Scene|None=None,
-                         group=None,
-                         origin:np.ndarray|list[float]=[0,0], 
-                         rotation:float|u.Quantity=0*u.deg,
-                         label:str = "Hyperbolic mirror") -> list[HyperbolicMirror]:
-    hole = hole.to(u.mm).value if type(hole)==u.Quantity else hole
-    topMirror = HyperbolicMirror(focal, aperture, scene, group, origin, rotation, label=f"{label} 1")
-    botMirror = HyperbolicMirror(focal, aperture, scene, group, origin, rotation, label=f"{label} 2")
-    topMirror.extent = [0.5*hole, 0.5*aperture]
-    botMirror.extent = [-0.5*aperture, -0.5*hole]
-    return topMirror, botMirror
-
+### OPTIC.GRATING ###
 
 class Grating(FlatMirror):
     def __init__(self,
@@ -578,6 +719,9 @@ class TransmissionGrating(FlatMirror):
     def interaction(self, angle:u.Quantity, ray:Ray, t_opt:float) -> u.Quantity:
         return (np.pi+np.arcsin((self.order*ray.wavelength*self.period).to(u.dimensionless_unscaled).value - np.sin(angle).value))*u.rad
 
+
+### VISUALIZATION ###
+
 class Camera(FlatMirror):
     def __init__(self,
                  aperture:u.Quantity|float,
@@ -603,14 +747,18 @@ class Camera(FlatMirror):
         plt.show()
     
 
+### GROUPS ###
+
 class OpticalGroup():
     def __init__(self,
                  elements:list=[],
                  scene:Scene|None=None,
+                 group=None,
                  origin:np.ndarray|list[float]=[0,0],
                  rotation:float|u.Quantity=0*u.deg,
                  label:str|None=None):
         self.scene : Scene = scene
+        self.group : OpticalGroup = group
         self.origin : np.ndarray = origin if type(origin)==np.ndarray else np.array(origin)
         self.rotation = rotation if type(rotation)==u.Quantity else rotation*u.deg
         self.label = label
@@ -625,8 +773,8 @@ class OpticalGroup():
         new_rotation = elem.rotation + self.rotation
         elem.update_pos(new_origin, new_rotation)
         elem.label = f"{self.label}/{elem.label}"
-        if self.scene is not None:
-            self.scene.append(elem)
+        if (self.scene is not None) & (self.group is None): self.scene.append(elem)
+        if self.group is not None: self.group.append(elem)
 
     def update_pos(self, new_pos:list[float]=None, new_rot:u.Quantity|float=None):
         new_pos = self.origin if new_pos is None else new_pos
@@ -657,3 +805,55 @@ class OpticalGroup():
     def __add__(self, other):
         return self.merge(other)
         
+def CassegrainTelescope(focal:float,
+                        aperture:float,
+                        backfocus:float,
+                        length:float,
+                        scene:Scene|None=None,
+                        group=None, 
+                        origin:np.ndarray|list[float]=[0,0], 
+                        rotation:float|u.Quantity=0*u.deg,
+                        label:str = "Cassegrain",
+                        return_geometry:bool=False):
+    q = length+backfocus
+    M = (focal-q)/(q-backfocus)
+    f1 = focal/M
+    p = (f1+backfocus)/(M+1)
+    aperture2 = aperture*p/f1
+    r2 = 2*q/(M-1)
+    b = -(4*M)/(M-1)**2 -1
+    telescope = OpticalGroup(scene=scene, origin=origin, rotation=rotation, label=label)
+    primary = ParabolicMirrorHole(focal=f1, aperture=aperture, hole=aperture2, group=telescope, origin=[backfocus,0], rotation=-90)
+    secondary = HyperbolicMirror(radius=r2, aperture=aperture2, b=b, group=telescope, origin=[q,0], rotation=-90)
+    if return_geometry:
+        geometry = {'Primary':{'Diameter':aperture,'Focal':f1}, 'Secondary':{'Diameter':aperture2,'Curvature':r2,'Conic':b}, 'Backfocus':backfocus}
+        return telescope, geometry
+    return telescope
+
+def RitcheyChretienTelescope(focal:float,
+                             aperture:float,
+                             backfocus:float,
+                             length:float,
+                             scene:Scene|None=None,
+                             group=None, 
+                             origin:np.ndarray|list[float]=[0,0], 
+                             rotation:float|u.Quantity=0*u.deg,
+                             label:str = "Ritech-Chrétien",
+                             return_geometry:bool=False):
+    q = length+backfocus
+    d = q-backfocus
+    s = q/d
+    M = (focal-q)/(q-backfocus)
+    r1 = 2*focal/M
+    r2 = 2*q/(M-1)
+    p = (r1+backfocus)/(M+1)
+    aperture2 = aperture*p/r1
+    b1 = -2*s/M**3 -1
+    b2 = (-4*M*(M-1) - 2*(M+s))/(M-1)**3 - 1
+    telescope = OpticalGroup(scene=scene, origin=origin, rotation=rotation, label=label)
+    primary = HyperbolicMirrorHole(radius=r1, aperture=aperture, b=b1, hole=aperture2, group=telescope, origin=[backfocus,0], rotation=-90)
+    secondary = HyperbolicMirror(radius=r2, aperture=aperture2, b=b2, group=telescope, origin=[q,0], rotation=-90)
+    if return_geometry:
+        geometry = {'Primary':{'Diameter':aperture,'Curvature':r1,'Conic':b1}, 'Secondary':{'Diameter':aperture2,'Curvature':r2,'Conic':b2}, 'Backfocus':backfocus}
+        return telescope, geometry
+    return telescope
