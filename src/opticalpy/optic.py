@@ -12,7 +12,8 @@ class Optic():
                  group=None, 
                  origin:np.ndarray|list[float]=[0,0], 
                  rotation:float|u.Quantity=0*u.deg,
-                 label:str|None = None):
+                 label:str|None = None,
+                 color='k'):
         self.raw_equation_x = equations[0]
         self.raw_equation_y = equations[1]
         self.extent : list[float] = extent
@@ -21,6 +22,7 @@ class Optic():
         self.sin, self.cos = np.sin(self.rotation).value, np.cos(self.rotation).value
         self.equation_x, self.equation_y = self.calc_equation()
         self.label : str|None = label
+        self.color = color
         self.scene = scene
         self.group = group
         if (self.scene is not None) & (self.group is None): self.scene.append(self)
@@ -46,7 +48,7 @@ class Optic():
     def __plot__(self, ax) -> None:
         t = np.linspace(self.extent[0], self.extent[1], 100)
         x, y = self.equation_x(t), self.equation_y(t)
-        ax.plot(x, y, color='k')
+        ax.plot(x, y, color=self.color)
 
     def normal_angle(self, t:float) -> u.Quantity:
         equation_dx = grad(self.equation_x)

@@ -43,6 +43,10 @@ This package integrates the following optical elements. The elements in *italic*
     * Prism
     * *Grism*
 
+* **Filter**:
+    * Filter
+    * Dichroic
+
 * **Camera**
 
 * **Telescopes**
