@@ -61,4 +61,5 @@ This package integrates the following optical elements. The elements in *italic*
 
 ## References
 
-Mike Lockwood, Amateur Telescope Making, http://loptics.com/ATM/index.html
+* Telescopes formulas : Mike Lockwood, Amateur Telescope Making, http://loptics.com/ATM/index.html
+* Optical properties of water : https://en.wikipedia.org/wiki/Optical_properties_of_water_and_ice
