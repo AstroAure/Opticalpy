@@ -65,7 +65,6 @@ This package integrates the following optical elements. The elements in *italic*
     * More telescopes (Newtonian, Schmidt-Cassegrain, Maksutov-Cassegrain)
 
 * Making it easier to use:
-    * PyPi package
     * Documentation
 
 * Future version:
