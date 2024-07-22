@@ -64,6 +64,10 @@ This package integrates the following optical elements. The elements in *italic*
     * Grisms
     * More telescopes (Newtonian, Schmidt-Cassegrain, Maksutov-Cassegrain)
 
+* Optical design:
+    * Spot shape at focal plane
+    * Design optimization (fixed and variable geometrical and shape parameters and optimization of spot sizes)
+
 * Making it easier to use:
     * Documentation
 
