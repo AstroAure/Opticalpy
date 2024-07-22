@@ -27,7 +27,7 @@ class Scene():
             for e in elem.elements:
                 self.append(e)
 
-    def plot(self, ax=None, show_hitbox=False) -> None:
+    def plot(self, ax=None, show_hitbox=False, show=True) -> None:
         ax = plt.subplots(figsize=(8,6))[1] if ax is None else ax
         for r in self.rays:
             r.__plot__(ax, self.lifetime)
@@ -37,4 +37,4 @@ class Scene():
         ax.set_aspect('equal')
         if self.xlim is not None: ax.set_xlim(self.xlim[0],self.xlim[1])
         if self.ylim is not None: ax.set_ylim(self.ylim[0],self.ylim[1])
-        plt.show()
+        if show: plt.show()
