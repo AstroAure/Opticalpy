@@ -1,6 +1,4 @@
-/__pycache__
-/src/opticalpy.egg-info
-/src/opticalpy/__pycache__
-/src/opticalpy/elems/__pycache__
+**__pycache__
+**egg-info
 /dist
 build_package.ipynb

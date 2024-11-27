@@ -1,3 +1,5 @@
+from . import elems
+from . import op3d
 from .scene import Scene
 from .ray import Ray
 from .optic import Optic
