@@ -6,7 +6,9 @@ This package in the making offers the possibility to **create optical setup** an
 
 It originated as a way to better understand how instruments in astronomy worked, and allow to design them for amateur scientific endeavours. However, this package can be used in very different fields !
 
-![Czerny-Turner spectrograph](https://github.com/AstroAure/Opticalpy/blob/main/images/Czerny-Turner%20spectrograph.png?raw=true)
+Since version 1.2.0, Opticalpy features a 3D version, with the same advantages as the 2D version ! This 3D version is accessible by importing `opticalpy.op3d`. It curently features less elements than the 2D version, but will be incremently improved.
+
+![Czerny-Turner spectrograph](https://github.com/AstroAure/Opticalpy/blob/main/images/Czerny-Turner%20spectrograph%203D.png?raw=true)
 
 ## What makes this package special ?
 
@@ -70,9 +72,6 @@ This package integrates the following optical elements. The elements in *italic*
 
 * Making it easier to use:
     * Documentation
-
-* Future version:
-    * 3D
 
 ## References
 
